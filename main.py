@@ -122,8 +122,7 @@ def execute_command(command):
 
         
 
-#path = input("请输入番剧目录")
-path = "C:\\Users\\Fly__Panda\\Desktop\\[Nekomoe kissaten&VCB-Studio] Henjin no Salad Bowl [Ma10p_1080p]"
+path = input("请输入番剧目录")
 path = os.path.normpath(path)
 
 multiple_season = season_judge(path)
