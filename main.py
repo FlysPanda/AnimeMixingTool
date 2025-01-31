@@ -1,195 +1,141 @@
-# -*- coding: utf8 -*-
-
+# -*- coding: utf-8 -*-
 import os
 import sys
+from pathlib import Path
+from enum import Enum
+from typing import List, Tuple, Optional
 from alive_progress import alive_bar
 
-#季数判断
-def season_judge(path):
-    file_exist = False
-    dir_list = os.listdir(path)
-    for dir in dir_list:
-        if os.path.isfile(os.path.join(path, dir)):
-            file_exist = True
-    if file_exist == False:
-        return True, dir_list
-    else:
-        return False, dir_list
+class SubtitleMode(Enum):
+    SINGLE = 1
+    DOUBLE = 2
 
-#递归获取所有目录以及子目录下文件地址
-def files_name_get(path):
-    files_list = []
-    for dirs,folders,files in os.walk(path):
-        for file in files:
-            files_list.append(os.path.join(dirs,file))
+def check_multiple_seasons(path: Path) -> Tuple[bool, List[Path]]:
+    """
+    检查目录结构是否包含多季内容
+    Returns: (是否多季, 子目录列表)
+    """
+    if not path.exists():
+        raise FileNotFoundError(f"目录不存在: {path}")
 
-    return files_list
+    has_files = any(child.is_file() for child in path.iterdir())
+    dirs = [child for child in path.iterdir() if child.is_dir()]
+    return (not has_files and len(dirs) > 0, dirs)
 
-#文件分类
-def files_extension_clas(path, files_list):
-    formats = ['.mkv','.ass','.ssa','.srt','.ttf','.ttc','.otf','.fon']
-    mkv = []
-    subtitle = []
-    font = []
-    for format in formats:
-        for files in files_list:
-            file = os.path.split(files)[-1]
-            if os.path.splitext(os.path.join(path, file))[-1].lower() == format:
-                if format == '.mkv':
-                    mkv.append(files)
-                if format in ['.ass','.ssa','.srt']:
-                    subtitle.append(files)
-                if format in ['.ttf','.ttc','.otf','.fon']:
-                    font.append(files)
-    return mkv, subtitle, font
+def get_all_files(path: Path) -> List[Path]:
+    """递归获取目录下所有文件"""
+    return [p for p in path.rglob('*') if p.is_file() and p.suffix]
 
-#执行混流(获取输出mkv的名称，判断单简体和简繁字幕，匹配视频及字幕文件，整合字体为命令，整合为命令)
+def classify_files(files: List[Path]) -> Tuple[List[Path], List[Path], List[Path]]:
+    """分类文件类型"""
+    video_ext = {'.mkv'}
+    sub_ext = {'.ass', '.ssa', '.srt'}
+    font_ext = {'.ttf', '.ttc', '.otf', '.fon'}
 
-#获取输出mkv的路径
-def output_path_get(mkvs):
-    output_mkv = []
-    for i in mkvs:
-        output_mkv.append("out\\" + os.path.split(i)[-1])
-    return output_mkv
+    videos, subs, fonts = [], [], []
+    for f in files:
+        ext = f.suffix.lower()
+        if ext in video_ext:
+            videos.append(f)
+        elif ext in sub_ext:
+            subs.append(f)
+        elif ext in font_ext:
+            fonts.append(f)
+    return videos, subs, fonts
 
-#判断单简体和简繁字幕
-def subtitle_judge(mkvs, subtitles):
-    num_mkv = len(mkvs)
-    num_subtitle = len(subtitles)
-    if num_subtitle == num_mkv:
-        switch = 1
-    elif num_subtitle == num_mkv*2:
-        switch = 2
-    else:
-        print("字幕与mkv数量不匹配！请检查输入目录！")
+def validate_subtitles(video_count: int, sub_count: int) -> SubtitleMode:
+    """验证字幕数量有效性"""
+    if sub_count == video_count:
+        return SubtitleMode.SINGLE
+    if sub_count == video_count * 2:
+        return SubtitleMode.DOUBLE
+    raise ValueError(f"字幕数量{sub_count}与视频数量{video_count}不匹配")
+
+def generate_output_paths(videos: List[Path], base_path: Path, output_root: Path) -> List[Path]:
+    """生成输出路径"""
+    return [output_root / v.relative_to(base_path.parent) for v in videos]
+
+def build_command(mkv: Path, subs: List[Path], fonts: List[Path], output: Path) -> str:
+    """构建命令行字符串（带自动转义处理）"""
+    def escape_path(p: Path) -> str:
+        # 处理Windows路径空格和特殊符号
+        return f'"{str(p.resolve())}"'
+
+    cmd_parts = [
+        'mkvtoolnix\mkvmerge.exe',
+        '-o', escape_path(output),
+        escape_path(mkv)
+    ]
+    
+    # 添加字幕文件
+    cmd_parts.extend(escape_path(s) for s in subs)
+    
+    # 添加字体文件参数
+    for font in fonts:
+        cmd_parts.append('--attach-file')
+        cmd_parts.append(escape_path(font))
+    
+    output.parent.mkdir(parents=True, exist_ok=True)
+    return ' '.join(cmd_parts)
+
+def process_season(season_path: Path, base_path: Path, output_root: Path) -> List[str]:
+    """处理单个季"""
+    files = get_all_files(season_path)
+    videos, subs, fonts = classify_files(files)
+    
+    if not videos:
+        raise ValueError(f"未找到视频文件: {season_path}")
+
+    try:
+        sub_mode = validate_subtitles(len(videos), len(subs))
+    except ValueError as e:
+        print(f"错误: {e}")
         sys.exit(1)
-    return switch
 
-#匹配视频及字幕文件
-def match_mkv_subtitle(switch, mkvs, subtitles):
-    mkv_group = []
-    #简繁字幕
-    if switch == 2:
-        index = 0
-        for i in mkvs:
-            index_sub1 = index * 2
-            index_sub2 = index_sub1 + 1
-            mkv_group.append([i, subtitles[index_sub1], subtitles[index_sub2]])
-            index = index + 1
-        
-    #单简体字幕
-    if switch == 1:
-        index = 0
-        for i in mkvs:
-            mkv_group.append([i, subtitles[index]])
-            index = index + 1
-    return mkv_group
+    sub_groups = []
+    for i, video in enumerate(videos):
+        if sub_mode == SubtitleMode.DOUBLE:
+            sub_groups.append(subs[i*2:i*2+2])
+        else:
+            sub_groups.append([subs[i]])
 
-#整合字体为命令
-def font_integration(fonts):
-    fonts_command = ""
-    for i in fonts:
-        fonts_command = fonts_command + " " + "--attach-file " + "\"" + i + "\""
-    return fonts_command
+    output_paths = generate_output_paths(videos, base_path, output_root)
+    return [build_command(v, s, fonts, o) for v, s, o in zip(videos, sub_groups, output_paths)]
 
-#整合为命令
-def command_integration(mkv_group, output_path, fonts_command):
-    command = []
-    index = 0
-    for i in mkv_group:
-        command_tmp = ".\\mkvtoolnix\\mkvmerge.exe -o" + " " + "\"" + output_path[index] + "\""
-        for files in i:
-            command_tmp = command_tmp + " " + "\"" + files + "\""
-        command_tmp = command_tmp + fonts_command
-        command.append(command_tmp)
-        index = index + 1
-    return command
-        
-#执行命令
-def execute_command(command):
-    #创建alive_progress进度条
-    with alive_bar(len(command)) as bar:
-        
-        #执行命令
-        index = 1
-        for i in command:
-            print("正在混流第[" + str(index) + "]集" + "\n")
-            result = os.system("\"" + i + "\"")
-            print(result)
-            print("\n")
-            index = index + 1
+def main():
+    input_path = Path(input("请输入番剧目录：").strip())
+    output_root = Path("out")
+    mkvmerge = Path("mkvtoolnix/mkvmerge.exe")
+
+    if not mkvmerge.exists():
+        print(f"错误: 找不到mkvmerge工具: {mkvmerge}")
+        sys.exit(1)
+
+    try:
+        is_multi, seasons = check_multiple_seasons(input_path)
+    except FileNotFoundError as e:
+        print(e)
+        sys.exit(1)
+
+    all_commands = []
+    try:
+        if is_multi:
+            for season in seasons:
+                all_commands += process_season(season, input_path, output_root)
+        else:
+            all_commands = process_season(input_path, input_path, output_root)
+    except Exception as e:
+        print(f"处理出错: {e}")
+        sys.exit(1)
+
+    print(f"即将处理 {len(all_commands)} 个视频")
+    with alive_bar(len(all_commands)) as bar:
+        for idx, cmd in enumerate(all_commands, 1):
+            print(f"\n正在处理第 {idx} 个视频...")
+            print("执行命令:", cmd)
+            os.system(cmd)
             bar()
+    print("\n所有处理已完成！")
 
-        
-
-path = input("请输入番剧目录")
-path = os.path.normpath(path)
-
-multiple_season = season_judge(path)
-if multiple_season[0]:
-    season_dirs = multiple_season[1]
-    multiple_season = multiple_season[0]
-else:
-    multiple_season = multiple_season[0]
-    season_dirs = ""
-
-#多季处理
-if multiple_season:
-    #文件地址获取
-    files_list = []
-    for dirs in season_dirs:
-        files_list.append(files_name_get(os.path.join(path,dirs)))
-    
-    #文件分类
-    classified_files = []
-    for index, files in enumerate(files_list):
-        classified_files.append(list(files_extension_clas(season_dirs[index], files)))
-    
-    #输出路径
-    output_path = []
-    for index, files in enumerate(classified_files):
-        output = output_path_get(files[0])
-        output_path_tmp = []
-        for i in output:
-            dir = os.path.split(i)[0]
-            file = os.path.split(i)[1]
-            output_path_tmp.append(os.path.join(dir, season_dirs[index], file))
-        output_path.append(output_path_tmp)
-    
-    #字幕判断
-    switch = []
-    for files in classified_files:
-        switch.append(subtitle_judge(files[0], files[1]))
-    
-    #视频字幕匹配
-    mkv_group = []
-    for index, files in enumerate(classified_files):
-        mkv_group.append(match_mkv_subtitle(switch[index], files[0], files[1]))
-    #字体命令整合
-    font_command = []
-    for files in classified_files:
-        font_command.append(font_integration(files[2]))
-    
-    #命令整合
-    command = []
-    for index, files in enumerate(mkv_group):
-        command = command + command_integration(files, output_path[index], font_command[index])
-        
-#单季处理
-elif multiple_season == False:
-    #文件地址获取
-    files_list = files_name_get(path)
-    #文件分类
-    classified_files = files_extension_clas(path, files_list)
-    #输出路径
-    output_path = output_path_get(classified_files[0])
-    #字幕判断
-    switch = subtitle_judge(classified_files[0], classified_files[1])
-    #视频字幕匹配
-    mkv_group = match_mkv_subtitle(switch, classified_files[0], classified_files[1])
-    #字体命令整合
-    font_command = font_integration(classified_files[2])
-    #命令整合
-    command = command_integration(mkv_group, output_path, font_command)
-
-execute_command(command)
+if __name__ == "__main__":
+    main()
