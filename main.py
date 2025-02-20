@@ -68,7 +68,27 @@ def build_command(mkv: Path, subs: List[Path], fonts: List[Path], output: Path) 
     ]
     
     # 添加字幕文件
-    cmd_parts.extend(escape_path(s) for s in subs)
+    simple = {".sc", ".chs"}
+    for s in subs:
+        tmp = Path(s.stem)
+        lang = tmp.suffix.lower()
+        if lang in simple:
+            cmd =[
+                "--language 0:zh-Hans", 
+                "--track-name \"0:简体中文\"", 
+                "\"(\"",
+                escape_path(s),
+                "\")\""
+            ]
+        else:
+            cmd =[
+                "--language 0:zh-Hant", 
+                "--track-name \"0:繁體中文\"", 
+                "\"(\"",
+                escape_path(s),
+                "\")\""
+            ]
+        cmd_parts.extend(cmd)
     
     # 添加字体文件参数
     for font in fonts:
