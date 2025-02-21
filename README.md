@@ -5,3 +5,7 @@
 - [x] 支持 多季度混流
 - [x] 支持 自动标记简繁字幕
 - [x] 支持 自动设置默认字幕
+
+## 致谢
+
+[Moritz Bunkus/MKVToolNix](https://gitlab.com/mbunkus/mkvtoolnix)
