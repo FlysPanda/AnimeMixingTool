@@ -9,3 +9,7 @@
 ## 致谢
 
 [Moritz Bunkus/MKVToolNix](https://gitlab.com/mbunkus/mkvtoolnix)
+
+### License
+
+[GNU General Public License, version 3](LICENSE)
