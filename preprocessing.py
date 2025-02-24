@@ -26,12 +26,13 @@ def mkv_check(mkvs: list[Path]):
     for result in results:
         sub_id = []
         js = json.loads(result)
-        sub_id.append(js["file_name"])
         tracks = js["tracks"]
         for track in tracks:
             if track["type"] == "subtitles":
+                sub_id.append(js["file_name"])
                 sub_id.append(track["id"])
-        subs_id.append(sub_id)
+        if sub_id != []:
+            subs_id.append(sub_id)
     return subs_id
 
 def processing(subs_id: list[str]):
@@ -70,6 +71,6 @@ def processing(subs_id: list[str]):
 
 if __name__ == "__main__":
     import mixing
-    input_path = Path("C:\\Users\\Fly__Panda\\Desktop\\123")
+    input_path = Path(input("请输入番剧目录：").strip())
     mkvs = mixing.classify_files(mixing.get_all_files(input_path))[0]
     processing(mkv_check(mkvs))
