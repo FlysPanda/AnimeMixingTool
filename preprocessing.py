@@ -29,7 +29,8 @@ def mkv_check(mkvs: list[Path]):
         tracks = js["tracks"]
         for track in tracks:
             if track["type"] == "subtitles":
-                sub_id.append(js["file_name"])
+                if sub_id == []:
+                    sub_id.append(js["file_name"])
                 sub_id.append(track["id"])
         if sub_id != []:
             subs_id.append(sub_id)
