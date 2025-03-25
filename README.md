@@ -3,9 +3,10 @@
 <a>
     <img src="./res/logo.jpg" alt="logo" title="logo" width="80"/>
 </a>
-</div>
+
 # MKV_automatic_mixing
 对下载的外挂字幕番剧进行自动混流
+</div>
 
 ### **TODO List**：  
 - [x] 支持 多季度混流
