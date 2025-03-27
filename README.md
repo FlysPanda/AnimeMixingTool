@@ -4,7 +4,7 @@
     <img src="./res/logo.jpg" alt="logo" title="logo" width="80"/>
 </a>
 
-# MKV_automatic_mixing
+# AnimeMixingTool
 对下载的外挂字幕番剧进行自动混流
 </div>
 
