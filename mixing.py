@@ -6,7 +6,6 @@ import sys
 from pathlib import Path
 from enum import Enum
 from typing import List, Tuple, Optional
-from alive_progress import alive_bar
 
 class SubtitleMode(Enum):
     SINGLE = 1

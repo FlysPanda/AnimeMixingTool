@@ -5,7 +5,6 @@ import time
 import subprocess
 import json
 from pathlib import Path
-from alive_progress import alive_bar
 
 def mkv_check(mkvs: list[Path]):
     """检查输入mkv中是否含有字幕文件"""
